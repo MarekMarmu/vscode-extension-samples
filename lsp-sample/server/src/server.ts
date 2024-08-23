@@ -3,6 +3,17 @@
  * Licensed under the MIT License. See License.txt in the project root for license information.
  * ------------------------------------------------------------------------------------------ */
 import {
+	Range,
+	WorkspaceChange,
+	Position,
+	Location,
+	LocationLink,
+	DeclarationParams,
+	Declaration,
+	WorkspaceSymbolParams,
+	SymbolInformation,
+	SymbolKind,
+    InsertTextFormat,
 	createConnection,
 	TextDocuments,
 	Diagnostic,
@@ -16,20 +27,24 @@ import {
 	TextDocumentSyncKind,
 	InitializeResult,
 	DocumentDiagnosticReportKind,
-	type DocumentDiagnosticReport
+	type DocumentDiagnosticReport,
+	TextDocumentContentChangeEvent
 } from 'vscode-languageserver/node';
 
 import {
 	TextDocument
 } from 'vscode-languageserver-textdocument';
 
+import * as packages from './Hierarchy';
+import { count } from 'console';
+
 // Create a connection for the server, using Node's IPC as a transport.
 // Also include all preview / proposed LSP features.
-const connection = createConnection(ProposedFeatures.all);
+ const connection = createConnection(ProposedFeatures.all);
 
 // Create a simple text document manager.
 const documents: TextDocuments<TextDocument> = new TextDocuments(TextDocument);
-
+export { connection, documents };
 let hasConfigurationCapability = false;
 let hasWorkspaceFolderCapability = false;
 let hasDiagnosticRelatedInformationCapability = false;
@@ -136,6 +151,8 @@ documents.onDidClose(e => {
 });
 
 
+
+
 connection.languages.diagnostics.on(async (params) => {
 	const document = documents.get(params.textDocument.uri);
 	if (document !== undefined) {
@@ -153,97 +170,328 @@ connection.languages.diagnostics.on(async (params) => {
 	}
 });
 
+
+connection.onDeclaration((params: DeclarationParams) => {
+    return null;
+})
+
 // The content of a text document has changed. This event is emitted
 // when the text document first opened or when its content has changed.
 documents.onDidChangeContent(change => {
+	
 	validateTextDocument(change.document);
+	
 });
 
+
+
+
+
+
 async function validateTextDocument(textDocument: TextDocument): Promise<Diagnostic[]> {
-	// In this simple example we get the settings for every validate run.
-	const settings = await getDocumentSettings(textDocument.uri);
 
-	// The validator creates diagnostics for all uppercase words length 2 and more
-	const text = textDocument.getText();
-	const pattern = /\b[A-Z]{2,}\b/g;
-	let m: RegExpExecArray | null;
+	packages.areInTheSamePackage(textDocument, textDocument) ;
 
-	let problems = 0;
-	const diagnostics: Diagnostic[] = [];
-	while ((m = pattern.exec(text)) && problems < settings.maxNumberOfProblems) {
-		problems++;
-		const diagnostic: Diagnostic = {
-			severity: DiagnosticSeverity.Warning,
-			range: {
-				start: textDocument.positionAt(m.index),
-				end: textDocument.positionAt(m.index + m[0].length)
-			},
-			message: `${m[0]} is all uppercase.`,
-			source: 'ex'
-		};
-		if (hasDiagnosticRelatedInformationCapability) {
-			diagnostic.relatedInformation = [
-				{
-					location: {
-						uri: textDocument.uri,
-						range: Object.assign({}, diagnostic.range)
-					},
-					message: 'Spelling matters'
-				},
-				{
-					location: {
-						uri: textDocument.uri,
-						range: Object.assign({}, diagnostic.range)
-					},
-					message: 'Particularly for names'
-				}
-			];
-		}
-		diagnostics.push(diagnostic);
-	}
-	return diagnostics;
+	
+
+    const settings = await getDocumentSettings(textDocument.uri);
+    const text = textDocument.getText();
+    const diagnostics: Diagnostic[] = [];
+
+    const semicolonPattern = /CahaJeNej/g;
+    const methodPattern = /fun\s+(\w+)\s*\([\w\s,:]*\)\s*:\s*(\w+)\s*\{/g;
+
+
+    const bracketPatterns = [
+        { type: '()', pattern: /[\(\)]/g },
+        { type: '[]', pattern: /[\[\]]/g },
+        { type: '{}', pattern: /[\{\}]/g }
+    ];
+
+    // 1. Kontrola pro klíčové slovo "CahaJeNej"
+    validatePattern(semicolonPattern, 'dobrá zmínka o cahovi', DiagnosticSeverity.Error);
+
+    // 2. Kontrola neuzavřených závorek s ignorováním závorek ve stringu
+    bracketPatterns.forEach(({ type, pattern }) => checkUnclosedBrackets(type, pattern));
+
+    // 3. Kontrola metod s návratovým typem (ne void), jestli obsahují return
+    checkMissingReturnInMethods();
+
+    return diagnostics;
+
+    function validatePattern(pattern: RegExp, message: string, severity: DiagnosticSeverity) {
+        let match: RegExpExecArray | null;
+        while ((match = pattern.exec(text)) && diagnostics.length < settings.maxNumberOfProblems) {
+            diagnostics.push({
+                severity,
+                range: {
+                    start: textDocument.positionAt(match.index),
+                    end: textDocument.positionAt(match.index + match[0].length)
+                },
+                message: `${message}: ${match[0]}`,
+                source: 'ex'
+            });
+        }
+    }
+
+    function checkUnclosedBrackets(type: string, pattern: RegExp) {
+        let stack: number[] = [];
+        let inString = false;
+        let stringChar = ''; 
+
+        for (let i = 0; i < text.length; i++) {
+            const char = text[i];
+
+            // Detekce začátku a konce stringu
+            if ((char === '"' || char === '\'') && !inString) {
+                inString = true;
+                stringChar = char;
+            } else if (char === stringChar && text[i - 1] !== '\\') {
+                inString = false;
+            }
+
+            if (!inString) {
+                if (char === type[0]) {
+                    stack.push(i);
+                } else if (char === type[1]) {
+                    if (stack.length === 0) {
+                        addBracketDiagnostic(i, `Missing opening ${type[0]}`);
+                    } else {
+                        stack.pop();
+                    }
+                }
+            }
+        }
+
+        while (stack.length > 0) {
+            addBracketDiagnostic(stack.pop()!, `Missing closing ${type[1]}`);
+        }
+    }
+
+
+
+    // Funkce pro kontrolu metod s návratovým typem (ne void) na chybějící return
+    function checkMissingReturnInMethods() {
+        let match: RegExpExecArray | null;
+
+        while ((match = methodPattern.exec(text)) !== null) {
+            const methodName = match[1];
+            const returnType = match[2];
+
+            // Pokud návratový typ není void, zkontrolujeme obsah metody na return
+            if (returnType !== 'void') {
+                const methodBody = extractMethodBody(match.index + match[0].length);
+
+                if (!/return\s+/.test(methodBody)) {
+                    diagnostics.push({
+                        severity: DiagnosticSeverity.Error,
+                        range: {
+                            start: textDocument.positionAt(match.index),
+                            end: textDocument.positionAt(match.index + match[0].length)
+                        },
+                        message: `Method '${methodName}' Has defined return type '${returnType}', but return is not present`,
+                        source: 'ex'
+                    });
+                }
+            }
+        }
+    }
+
+
+	// Example function to index symbols in the document
+
+
+
+    // Pomocná funkce pro extrakci těla metody
+    function extractMethodBody(startIndex: number): string {
+        let depth = 1;
+        let body = '';
+
+        for (let i = startIndex; i < text.length; i++) {
+            if (text[i] === '{') {
+                depth++;
+            } else if (text[i] === '}') {
+                depth--;
+            }
+
+            if (depth === 0) break;
+            body += text[i];
+        }
+		
+        return body;
+    }
+
+    // Pomocná funkce pro přidání diagnostiky závorek
+    function addBracketDiagnostic(index: number, message: string) {
+        diagnostics.push({
+            severity: DiagnosticSeverity.Error,
+            range: {
+                start: textDocument.positionAt(index),
+                end: textDocument.positionAt(index + 1)
+            },
+            message,
+            source: 'ex'
+        });
+    }
 }
+
 
 connection.onDidChangeWatchedFiles(_change => {
 	// Monitored files have change in VSCode
 	connection.console.log('We received a file change event');
 });
 
+
+/*function whisperFunctions(openedDocument : TextDocument) : CompletionItem[] {
+
+	
+
+
+	
+
+	return null;
+}*/
+
+function hierarchy() {
+
+}
+
+function getWordAtPosition(document: TextDocument, position: { line: number, character: number }): string {
+    const line = document.getText({ start: { line: position.line, character: 0 }, end: { line: position.line, character: document.getText().length } });
+    const words = line.split(/\s+/); // Rozdělí řádek na slova podle mezer
+    for (const word of words) {
+        // Zkontroluje, zda pozice kurzoru patří k aktuálnímu slovu
+        const start = line.indexOf(word);
+        const end = start + word.length;
+        if (position.character >= start && position.character <= end) {
+            return word;
+        }
+    }
+    return '';
+}
+
 // This handler provides the initial list of the completion items.
 connection.onCompletion(
-	(_textDocumentPosition: TextDocumentPositionParams): CompletionItem[] => {
-		// The pass parameter contains the position of the text document in
-		// which code complete got requested. For the example we ignore this
-		// info and always provide the same completion items.
-		return [
-			{
-				label: 'TypeScript',
-				kind: CompletionItemKind.Text,
-				data: 1
+    (_textDocumentPosition: TextDocumentPositionParams, changeEvent): CompletionItem[] => {
+		const currentDocument = documents.get(_textDocumentPosition.textDocument.uri);
+        const keywords = [
+            'void ', 'f64 ', 'f32 ', 'f16 ', 'ui128 ', 'ui64 ', 'ui32 ', 'ui16 ', 'ui8 ', 
+            'i128 ', 'i64 ', 'i32 ', 'i16 ', 'i8 ', 'new ', 'class ', 'const ', 'var ', 
+            'abstract ', 'protected ', 'private ', 'public ', 'for ', 
+            'return ', 'break ', 'continue ', 'fun ', 'int ', 
+            'string ', 'long ', 'int32 ', 'enum ', 'abstract class ', 'case ', 'static', 'import'
+        ];
+
+
+        let completionItems: CompletionItem[] = keywords.map((keyword, index) => ({
+            label: keyword,
+            kind: CompletionItemKind.Keyword,
+            data: index + 1
+        }));
+
+		documents.all().forEach(textDocument => {
+			_textDocumentPosition.position.line
+		
+			const regexFunction = /\bfun\s+(\w+)\s*\(([^)]*)\)/g;
+			const regexClass = /\bclass\s+(\w+)\b/g; 
+			const text = textDocument.getText();
+			let match;
+		
+			while ((match = regexFunction.exec(text)) !== null) {
+				const functionNameAndBrackets = `${match[1]}()`;
+				
+				if ( textDocument === currentDocument || packages.isFunctionInPublicScope(textDocument.getText(),match.index, match[1]) || (packages.areInTheSamePackage(textDocument, currentDocument as TextDocument) && !packages.isFunctionInPrivateScope(textDocument.getText(), match.index, match[1])))
+				
+				{
+			
+					completionItems.push({
+						label: functionNameAndBrackets,
+						kind: CompletionItemKind.Function,
+						documentation: `Function ${functionNameAndBrackets}`
+					});
+				}
+			}
+		
+			while ((match = regexClass.exec(text)) !== null) {
+				const className = match[1];
+				const classNameAndBrackets = `${className}`;
+				if (textDocument === currentDocument || 
+					packages.isFunctionInPublicScope(text, match.index, match[1]) || 
+					(packages.areInTheSamePackage(textDocument, currentDocument as TextDocument) && 
+					!packages.isFunctionInPrivateScope(text, match.index, match[1]))) 
+					
+				{
+					
+					completionItems.push({
+						label: classNameAndBrackets,
+						kind: CompletionItemKind.Class,
+						documentation: `Class ${classNameAndBrackets}`
+					});
+				}
+			} 
+		});
+	
+        completionItems.push({
+            label: 'fori',
+            kind: CompletionItemKind.Snippet,
+            insertText: 'for (var ${1:i} = 0; ${1:i} < ${2:count}; ${1:i}++) {\n\t$0\n}',
+            insertTextFormat: InsertTextFormat.Snippet,
+            documentation: 'Generates a for loop iteration'
+        });
+
+		completionItems.push({
+            label: 'while',
+            kind: CompletionItemKind.Snippet,
+            insertText: 'while (${1}) {\n\t$0\n}',
+            insertTextFormat: InsertTextFormat.Snippet,
+            documentation: 'Generates a while loop iteration'
+        });
+
+		completionItems.push({
+            label: 'foreach',
+            kind: CompletionItemKind.Snippet,
+            insertText: 'for (var ${1} : ) {\n\t$0\n}',
+            insertTextFormat: InsertTextFormat.Snippet,
+            documentation: 'Generates a foreach loop iteration'
+        });
+
+		completionItems.push({
+            label: 'switch',
+            kind: CompletionItemKind.Snippet,
+            insertText: 'switch (${1}) {\n\t$0\n}',
+            insertTextFormat: InsertTextFormat.Snippet,
+            documentation: 'Generates a foreach loop iteration'
+        }, 
+		{
+		label: 'if',
+		kind: CompletionItemKind.Snippet,
+		insertText: 'if (${1}) {\n\t$0\n}',
+		insertTextFormat: InsertTextFormat.Snippet,
+		documentation: 'Generates a if statement iteration'
+		},
+		
+		{
+			label: 'else',
+			kind: CompletionItemKind.Snippet,
+			insertText: 'else  {\n\t${1}\n}',
+			insertTextFormat: InsertTextFormat.Snippet,
+			documentation: 'Generates a else statement iteration'
 			},
 			{
-				label: 'JavaScript',
-				kind: CompletionItemKind.Text,
-				data: 2
-			}
-		];
-	}
+				label: 'function',
+				kind: CompletionItemKind.Snippet,
+				insertText: 'fun ${1}()  {\n\t$0\n}',
+				insertTextFormat: InsertTextFormat.Snippet,
+				documentation: 'Generates a else statement iteration'
+				}
+	);
+	
+
+
+        return completionItems;
+    }
 );
 
-// This handler resolves additional information for the item selected in
-// the completion list.
-connection.onCompletionResolve(
-	(item: CompletionItem): CompletionItem => {
-		if (item.data === 1) {
-			item.detail = 'TypeScript details';
-			item.documentation = 'TypeScript documentation';
-		} else if (item.data === 2) {
-			item.detail = 'JavaScript details';
-			item.documentation = 'JavaScript documentation';
-		}
-		return item;
-	}
-);
 
 // Make the text document manager listen on the connection
 // for open, change and close text document events
