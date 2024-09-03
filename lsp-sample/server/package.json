@@ -15,5 +15,9 @@
 		"vscode-languageserver": "^9.0.1",
 		"vscode-languageserver-textdocument": "^1.0.11"
 	},
-	"scripts": {}
+	"scripts": {},
+	"devDependencies": {
+		"@types/moo": "^0.5.9",
+		"@types/nearley": "^2.11.5"
+	}
 }

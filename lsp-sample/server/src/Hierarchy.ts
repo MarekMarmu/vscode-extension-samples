@@ -9,14 +9,16 @@ import { publicDecrypt } from 'crypto';
 
 
 
-function getPackageFromUri(uri: string): string | null {
-    // Dekódování URI
+export function getPackageFromUri(uri: string): string  {
+    
     const decodedUri = decodeURI(uri);
     
     const parts = decodedUri.split('/');
 
-    return parts.length > 0 ? parts[parts.length - 2] : null;
+    return  parts[parts.length - 2] ;
 }
+
+
   
   export function areInTheSamePackage(uri1: TextDocument, uri2: TextDocument): boolean {
 	const package1 = getPackageFromUri(uri1.uri);
@@ -42,7 +44,6 @@ function getPackageFromUri(uri: string): string | null {
         }
 
     }
-
     // Pokud nebyla žádná shoda nalezena nebo se matcher neshoduje, kontrolujeme text před funkcí
     return false;
 }
@@ -70,7 +71,7 @@ function getPackageFromUri(uri: string): string | null {
 
 export function isVariableInPublicScope(text: string, functionStartIndex: number, matcher : string): boolean {
 	const textBeforeFunction = text.substring(0, functionStartIndex);
-    const privateScopeRegex = /^public:\s*(\s{4,}(var|const)\s+\w+\([^)]*\)\s*\{[^}]*\}\s*\n)+/gm;
+    const privateScopeRegex = /^public:\s*\n(\s*(var|const)\s+(\w)+;\s*)+/gm;
 
     let match;
 
@@ -89,7 +90,7 @@ export function isVariableInPublicScope(text: string, functionStartIndex: number
 
 export function isVariableInPrivateScope(text: string, functionStartIndex: number, matcher : string): boolean {
 	const textBeforeFunction = text.substring(0, functionStartIndex);
-    const privateScopeRegex = /^private:\s*(\s{4,}(var|const)\s+\w+\([^)]*\)\s*\{[^}]*\}\s*\n)+/gm;
+    const privateScopeRegex = /^private:\s*\n(\s*(var|const)\s+(\w)+;\s*)+/gm;
 
     let match;
 
@@ -106,6 +107,10 @@ export function isVariableInPrivateScope(text: string, functionStartIndex: numbe
     return false;
 }
 
-  export function importGeneration() {
-	0
+  export function importGeneration(structureName : string, textDocument : TextDocument) {
+	
+  }
+
+  export function isVariableInFunctionScope() {
+	const functionScopeRegex = /fun\s+\w+\([^)]+\)\s*\{([^}]+)\}/gm;
   }

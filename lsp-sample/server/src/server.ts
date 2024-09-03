@@ -37,6 +37,7 @@ import {
 
 import * as packages from './Hierarchy';
 import { count } from 'console';
+import { extractFunctions } from './Parsing';
 
 // Create a connection for the server, using Node's IPC as a transport.
 // Also include all preview / proposed LSP features.
@@ -166,6 +167,7 @@ connection.languages.diagnostics.on(async (params) => {
 		return {
 			kind: DocumentDiagnosticReportKind.Full,
 			items: []
+		
 		} satisfies DocumentDiagnosticReport;
 	}
 });
@@ -177,11 +179,29 @@ connection.onDeclaration((params: DeclarationParams) => {
 
 // The content of a text document has changed. This event is emitted
 // when the text document first opened or when its content has changed.
+const code = `
+public fun myFunction() : int {}
+class prdelka {
+    fun nestedFunction() {
+        console.log("Nested");
+    }
+}
+	fun prdel() {
+	}
+    nestedFunction();
+
+`;
+
+
 documents.onDidChangeContent(change => {
-	
+	console.log(extractFunctions(code, change.document.uri));
 	validateTextDocument(change.document);
-	
+
 });
+
+
+
+
 
 
 
@@ -360,7 +380,6 @@ function getWordAtPosition(document: TextDocument, position: { line: number, cha
     const line = document.getText({ start: { line: position.line, character: 0 }, end: { line: position.line, character: document.getText().length } });
     const words = line.split(/\s+/); // Rozdělí řádek na slova podle mezer
     for (const word of words) {
-        // Zkontroluje, zda pozice kurzoru patří k aktuálnímu slovu
         const start = line.indexOf(word);
         const end = start + word.length;
         if (position.character >= start && position.character <= end) {
@@ -370,18 +389,19 @@ function getWordAtPosition(document: TextDocument, position: { line: number, cha
     return '';
 }
 
-// This handler provides the initial list of the completion items.
+const keywords = [
+	'readonly', 'f64 ', 'f32 ', 'f16 ', 'ui128 ', 'ui64 ', 'ui32 ', 'ui16 ', 'ui8 ', 
+	'i128 ', 'i64 ', 'i32 ', 'i16 ', 'i8 ', 'new ', 'class ', 'const ', 'var ', 
+	'protected ', 'private ', 'public ', 'for ', 
+	'return ', 'break ', 'continue ', 'fun ', 'int ', 
+	'string ',  'int32 ', 'enum ', 'case ', 'static', 'import', 'switch',
+];
+
+
 connection.onCompletion(
     (_textDocumentPosition: TextDocumentPositionParams, changeEvent): CompletionItem[] => {
 		const currentDocument = documents.get(_textDocumentPosition.textDocument.uri);
-        const keywords = [
-            'void ', 'f64 ', 'f32 ', 'f16 ', 'ui128 ', 'ui64 ', 'ui32 ', 'ui16 ', 'ui8 ', 
-            'i128 ', 'i64 ', 'i32 ', 'i16 ', 'i8 ', 'new ', 'class ', 'const ', 'var ', 
-            'abstract ', 'protected ', 'private ', 'public ', 'for ', 
-            'return ', 'break ', 'continue ', 'fun ', 'int ', 
-            'string ', 'long ', 'int32 ', 'enum ', 'abstract class ', 'case ', 'static', 'import'
-        ];
-
+        
 
         let completionItems: CompletionItem[] = keywords.map((keyword, index) => ({
             label: keyword,
@@ -394,6 +414,7 @@ connection.onCompletion(
 		
 			const regexFunction = /\bfun\s+(\w+)\s*\(([^)]*)\)/g;
 			const regexClass = /\bclass\s+(\w+)\b/g; 
+			const regexVariable = /\b(var|const|int|float|char)\s+(\w+)\b/g;
 			const text = textDocument.getText();
 			let match;
 		
@@ -429,6 +450,26 @@ connection.onCompletion(
 					});
 				}
 			} 
+
+			while ((match = regexVariable.exec(text)) !== null) {
+				const variableName = match[2];
+				connection.console.log(match[2] + " tohle je to co to matchne takže jmeno var")
+				if (textDocument === currentDocument || 
+					packages.isVariableInPublicScope(text, match.index, match[2]) || 
+					(packages.areInTheSamePackage(textDocument, currentDocument as TextDocument) && 
+					!packages.isVariableInPrivateScope(text, match.index, match[2]))) 
+					
+				{
+					
+					completionItems.push({
+						label: variableName,
+						kind: CompletionItemKind.Variable,
+						documentation: `vARIABLE ${variableName}`
+					});
+				}
+			} 
+		
+
 		});
 	
         completionItems.push({
