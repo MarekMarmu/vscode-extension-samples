@@ -4,8 +4,8 @@ import {
 	TextDocument
 } from 'vscode-languageserver-textdocument';
 
-import { connection, documents } from './server';
-import { publicDecrypt } from 'crypto';
+
+
 
 
 
@@ -15,7 +15,7 @@ export function getPackageFromUri(uri: string): string  {
     
     const parts = decodedUri.split('/');
 
-    return  parts[parts.length - 2] ;
+    return parts[parts.length - 2] ;
 }
 
 

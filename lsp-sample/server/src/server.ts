@@ -29,15 +29,18 @@ import {
 	DocumentDiagnosticReportKind,
 	type DocumentDiagnosticReport,
 	TextDocumentContentChangeEvent
-} from 'vscode-languageserver/node';
+} from 'vscode-languageserver/node.js';
+import { allTokens } from './chervotain lexer.js';
+
 
 import {
 	TextDocument
 } from 'vscode-languageserver-textdocument';
 
-import * as packages from './Hierarchy';
-import { count } from 'console';
-import { extractFunctions } from './Parsing';
+import * as packages from './Hierarchy.js';
+
+import * as chevrotain from 'chevrotain';
+import MyParser from './chevrotain parser.js';
 
 // Create a connection for the server, using Node's IPC as a transport.
 // Also include all preview / proposed LSP features.
@@ -175,37 +178,61 @@ connection.languages.diagnostics.on(async (params) => {
 
 connection.onDeclaration((params: DeclarationParams) => {
     return null;
-})
+});
 
-// The content of a text document has changed. This event is emitted
-// when the text document first opened or when its content has changed.
-const code = `
-public fun myFunction() : int {}
-class prdelka {
-    fun nestedFunction() {
-        console.log("Nested");
-    }
-}
+let parserResult : chevrotain.CstNode;
+
+documents.onDidChangeContent(change => {
+	const lexer = new chevrotain.Lexer(allTokens);
+
+// Představme si, že máte vstupní řetězec, který chcete analyzovat
+const inputText = `
+
+// prdelka
+class prdelnicka {
+    var analnikac : prdl;
+
+	public:
+	var prdelnka : ro;
+
+	private:
+	fun anal(param : ina) {
+	}
+	fun prdelnicka() {
+		var analnica = "20";
+	}
+	protected:
 	fun prdel() {
 	}
-    nestedFunction();
+
+}
+	
 
 `;
 
+// Spustíme lexer pro získání tokenů z textu
+const tokens = lexer.tokenize(inputText);
 
-documents.onDidChangeContent(change => {
-	console.log(extractFunctions(code, change.document.uri));
+// Zkontrolujeme, zda lexer nevygeneroval chyby
+if ( tokens.errors.length > 0) {
+    console.error("Lexer errors detected",  tokens.errors);
+} else {
+     const parserInstance = new MyParser();
+    
+    parserInstance.input =  tokens.tokens;
+    const parseResult = parserInstance.program(); 
+
+    if (parserInstance.errors.length > 0) {
+        console.error("Parser errors detected", parserInstance.errors);
+    } else {
+        parserResult = parseResult;
+        console.log("Parse successful:", parseResult.children);
+
+    }
+}
 	validateTextDocument(change.document);
 
 });
-
-
-
-
-
-
-
-
 
 
 async function validateTextDocument(textDocument: TextDocument): Promise<Diagnostic[]> {
@@ -223,12 +250,12 @@ async function validateTextDocument(textDocument: TextDocument): Promise<Diagnos
 
 
     const bracketPatterns = [
-        { type: '()', pattern: /[\(\)]/g },
-        { type: '[]', pattern: /[\[\]]/g },
-        { type: '{}', pattern: /[\{\}]/g }
+        { type: '()', pattern: /[()]/g },
+        { type: '[]', pattern: /[[]]/g },
+        { type: '{}', pattern: /[{}]/g }
     ];
 
-    // 1. Kontrola pro klíčové slovo "CahaJeNej"
+    
     validatePattern(semicolonPattern, 'dobrá zmínka o cahovi', DiagnosticSeverity.Error);
 
     // 2. Kontrola neuzavřených závorek s ignorováním závorek ve stringu
@@ -255,7 +282,7 @@ async function validateTextDocument(textDocument: TextDocument): Promise<Diagnos
     }
 
     function checkUnclosedBrackets(type: string, pattern: RegExp) {
-        let stack: number[] = [];
+        const stack: number[] = [];
         let inString = false;
         let stringChar = ''; 
 
@@ -362,19 +389,8 @@ connection.onDidChangeWatchedFiles(_change => {
 });
 
 
-/*function whisperFunctions(openedDocument : TextDocument) : CompletionItem[] {
-
-	
 
 
-	
-
-	return null;
-}*/
-
-function hierarchy() {
-
-}
 
 function getWordAtPosition(document: TextDocument, position: { line: number, character: number }): string {
     const line = document.getText({ start: { line: position.line, character: 0 }, end: { line: position.line, character: document.getText().length } });
@@ -394,7 +410,7 @@ const keywords = [
 	'i128 ', 'i64 ', 'i32 ', 'i16 ', 'i8 ', 'new ', 'class ', 'const ', 'var ', 
 	'protected ', 'private ', 'public ', 'for ', 
 	'return ', 'break ', 'continue ', 'fun ', 'int ', 
-	'string ',  'int32 ', 'enum ', 'case ', 'static', 'import', 'switch',
+	'string ',  'int32 ', 'enum ', 'case ', 'static', 'import', 'match',
 ];
 
 
@@ -403,74 +419,20 @@ connection.onCompletion(
 		const currentDocument = documents.get(_textDocumentPosition.textDocument.uri);
         
 
-        let completionItems: CompletionItem[] = keywords.map((keyword, index) => ({
+        const completionItems: CompletionItem[] = keywords.map((keyword, index) => ({
             label: keyword,
             kind: CompletionItemKind.Keyword,
             data: index + 1
         }));
 
-		documents.all().forEach(textDocument => {
-			_textDocumentPosition.position.line
-		
-			const regexFunction = /\bfun\s+(\w+)\s*\(([^)]*)\)/g;
-			const regexClass = /\bclass\s+(\w+)\b/g; 
-			const regexVariable = /\b(var|const|int|float|char)\s+(\w+)\b/g;
-			const text = textDocument.getText();
-			let match;
-		
-			while ((match = regexFunction.exec(text)) !== null) {
-				const functionNameAndBrackets = `${match[1]}()`;
-				
-				if ( textDocument === currentDocument || packages.isFunctionInPublicScope(textDocument.getText(),match.index, match[1]) || (packages.areInTheSamePackage(textDocument, currentDocument as TextDocument) && !packages.isFunctionInPrivateScope(textDocument.getText(), match.index, match[1])))
-				
-				{
-			
-					completionItems.push({
-						label: functionNameAndBrackets,
-						kind: CompletionItemKind.Function,
-						documentation: `Function ${functionNameAndBrackets}`
-					});
-				}
-			}
-		
-			while ((match = regexClass.exec(text)) !== null) {
-				const className = match[1];
-				const classNameAndBrackets = `${className}`;
-				if (textDocument === currentDocument || 
-					packages.isFunctionInPublicScope(text, match.index, match[1]) || 
-					(packages.areInTheSamePackage(textDocument, currentDocument as TextDocument) && 
-					!packages.isFunctionInPrivateScope(text, match.index, match[1]))) 
-					
-				{
-					
-					completionItems.push({
-						label: classNameAndBrackets,
-						kind: CompletionItemKind.Class,
-						documentation: `Class ${classNameAndBrackets}`
-					});
-				}
-			} 
+        
 
-			while ((match = regexVariable.exec(text)) !== null) {
-				const variableName = match[2];
-				connection.console.log(match[2] + " tohle je to co to matchne takže jmeno var")
-				if (textDocument === currentDocument || 
-					packages.isVariableInPublicScope(text, match.index, match[2]) || 
-					(packages.areInTheSamePackage(textDocument, currentDocument as TextDocument) && 
-					!packages.isVariableInPrivateScope(text, match.index, match[2]))) 
-					
-				{
-					
-					completionItems.push({
-						label: variableName,
-						kind: CompletionItemKind.Variable,
-						documentation: `vARIABLE ${variableName}`
-					});
-				}
-			} 
+		documents.all().forEach(textDocument => {
+			_textDocumentPosition.position.line;
 		
 
 		});
+        
 	
         completionItems.push({
             label: 'fori',
