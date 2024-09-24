@@ -2,13 +2,17 @@ import * as chevrotain from 'chevrotain';
 import { tokens, allTokens } from './chervotain lexer.js';
 
 export class MyParser extends chevrotain.CstParser {
+  
+
     constructor() {
         super(allTokens);
         this.performSelfAnalysis();
     }
 
+    
+
     // Pravidlo pro celý program - může obsahovat jak třídy, tak funkce
-    public program = this.RULE("program", () => {
+    public file = this.RULE("file", () => {
         this.MANY(() => {
             this.OR([
                 { ALT: () => this.SUBRULE(this.classDeclaration) },  // Třída
@@ -70,31 +74,40 @@ export class MyParser extends chevrotain.CstParser {
         this.CONSUME(tokens.ClassKeyword);  // "class"
         this.CONSUME(tokens.Identifier);    // název třídy
         this.CONSUME(tokens.LCurly);        // "{"
-
-        // Třída může obsahovat členy třídy (funkce, proměnné nebo další třídy)
-        this.MANY(() => {
-            this.OR([
-                { ALT: () => this.SUBRULE(this.accessBlock) },     // Přístupový blok (např. public:, private:)
-                { ALT: () => this.SUBRULE(this.functionDeclaration) },  // Funkce uvnitř třídy
-                { ALT: () => this.SUBRULE(this.classDeclaration) },
-                { ALT: () => this.SUBRULE(this.variableDeclaration) }           
-            ]);
-        });
-
+    
+        // Samostatné pravidlo pro tělo třídy
+        this.SUBRULE(this.classBody);
+    
         this.CONSUME(tokens.RCurly);        // "}"
     });
+    
+    // Nové pravidlo pro classBody
+    public classBody = this.RULE("classBody", () => {
+        this.MANY(() => {
+            this.OR([
+                { ALT: () => this.SUBRULE(this.accessBlock) },  // Přístupový blok
+                { ALT: () => this.SUBRULE(this.functionDeclaration) },  // Funkce uvnitř třídy
+                { ALT: () => this.SUBRULE(this.classDeclaration) }, // Vnořená třída
+                { ALT: () => this.SUBRULE(this.variableDeclaration) } // Deklarace proměnné
+            ]);
+        });
+    });
+    
 
     // Přístupový blok pro private:, public:, atd.
     public accessBlock = this.RULE("accessBlock", () => {
         this.SUBRULE(this.accessModifier);  // Např. "private:"
         this.CONSUME(tokens.Colon);         // Dvojtečka po modifikátoru
         
-        // Následující členy pod tímto přístupovým modifikátorem
+        this.SUBRULE(this.accesssBlockBody);
+    });
+
+    private accesssBlockBody = this.RULE("accessBlockBody", () => {
         this.MANY(() => {
             this.OR([
-                { ALT: () => this.SUBRULE(this.functionDeclaration) },  // Funkce uvnitř bloku
-                { ALT: () => this.SUBRULE(this.classDeclaration) },
-                { ALT: () => this.SUBRULE(this.variableDeclaration) }      // Vnořená třída
+                { ALT: () => this.SUBRULE(this.functionDeclaration) },  // Funkce uvnitř třídy
+                { ALT: () => this.SUBRULE(this.classDeclaration) }, // Vnořená třída
+                { ALT: () => this.SUBRULE(this.variableDeclaration) } // Deklarace proměnné
             ]);
         });
     });
@@ -119,7 +132,7 @@ export class MyParser extends chevrotain.CstParser {
         this.CONSUME(tokens.RParen);           // ")"
         this.CONSUME(tokens.LCurly);           // "{"
 
-        // Funkce může obsahovat další funkce nebo třídy
+        
         this.MANY(() => {
             this.OR([
                 { ALT: () => this.SUBRULE(this.functionDeclaration) },  // Vnořená funkce
@@ -130,6 +143,11 @@ export class MyParser extends chevrotain.CstParser {
 
         this.CONSUME(tokens.RCurly);           // "}"
     });
+
+   // private ReturnStatement = this.RULE("ReturnStamenent", () => {
+
+  //  });
+
 
     // Pravidlo pro seznam parametrů funkce
     private parameterList = this.RULE("parameterList", () => {
