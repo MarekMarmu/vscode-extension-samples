@@ -177,20 +177,12 @@ connection.languages.diagnostics.on(async (params) => {
 	}
 });
 
-
-connection.onDeclaration((params: DeclarationParams) => {
-    return null;
-});
-
-let parserResult : chevrotain.CstNode;
-
-documents.onDidChangeContent(change => {
-	const lexer = new chevrotain.Lexer(allTokens);
-
-// Představme si, že máte vstupní řetězec, který chcete analyzovat
 const inputText = `
 
 // prdelka
+
+fun kakani() {}
+
 class prdelnicka {
 
     class praseeee {}
@@ -208,10 +200,21 @@ class prdelnicka {
 	protected:
 	fun prdel(prase : prdel) {
 	}
-
 }
-
 `;
+let visitResult: any;
+
+connection.onDeclaration((params: DeclarationParams) => {
+    return null;
+});
+
+let parserResult : chevrotain.CstNode;
+
+documents.onDidChangeContent(change => {
+	const lexer = new chevrotain.Lexer(allTokens);
+
+// Představme si, že máte vstupní řetězec, který chcete analyzovat
+
 
 // Spustíme lexer pro získání tokenů z textu
 const tokens = lexer.tokenize(inputText);
@@ -230,112 +233,148 @@ if ( tokens.errors.length > 0) {
     } else {
         parserResult = parseResult;
 
-       class CahaVisitor extends parserInstance.getBaseCstVisitorConstructor() {
-    constructor() {
-        super();
-        this.validateVisitor();
-    }
+        class CahaVisitor extends parserInstance.getBaseCstVisitorConstructor() {
 
-    file(ctx: any) {
-        const classDeclarations = ctx.classDeclaration ? ctx.classDeclaration.map((classNode: chevrotain.CstNode) => this.visit(classNode)) : [];
-        const functionDeclarations = ctx.functionDeclaration ? ctx.functionDeclaration.map((funcNode: chevrotain.CstNode) => this.visit(funcNode)) : [];
-        const variableDeclarations = ctx.variableDeclaration ? ctx.variableDeclaration.map((varNode: chevrotain.CstNode) => this.visit(varNode)) : [];
-      
-        return [...classDeclarations, ...functionDeclarations, ...variableDeclarations];
-    }
-
-    classBody(ctx: any) {
-        const classDeclarations = ctx.classDeclaration ? ctx.classDeclaration.map((node: any) => this.visit(node)) : [];
-        const functionDeclarations = ctx.functionDeclaration ? ctx.functionDeclaration.map((node: any) => this.visit(node)) : [];
-        const variableDeclarations = ctx.variableDeclaration ? ctx.variableDeclaration.map((node: any) => this.visit(node)) : [];
-        const accessBlockDeclarations = ctx.accessBlock ? ctx.accessBlock.map((node: any) => this.visit(node)) : [];
+            currentModifier: null = null;  // Globální proměnná pro sledování modifikátoru
         
-        return [...classDeclarations, ...functionDeclarations, ...variableDeclarations, ...accessBlockDeclarations];
-    }
-
-    classDeclaration(ctx: any) {
-        const className = ctx.Identifier ? ctx.Identifier[0].image : null;
-        const classBody = ctx.classBody ? ctx.classBody.map((bodyNode: chevrotain.CstNode) => this.visit(bodyNode)) : [];
-        return { type: 'ClassDeclaration', name: className, body: classBody };
-    }
-
-    accessBlock(ctx: any) {
+            constructor() {
+                super();
+                this.validateVisitor();
+            }
         
-        const modifier = ctx.accessModifier ? this.visit(ctx.accessModifier) : null;
-        const blockBody = ctx.accessBlockBody ? ctx.accessBlockBody.map((bodyNode: chevrotain.CstNode) => this.visit(bodyNode)) : [];
-        return { type: 'AccessBlock', modifier, body: blockBody };
-    }
-     
-    accessBlockBody(ctx: any) {
-        const classDeclarations = ctx.classDeclaration ? ctx.classDeclaration.map((node: any) => this.visit(node)) : [];
-        const functionDeclarations = ctx.functionDeclaration ? ctx.functionDeclaration.map((node: any) => this.visit(node)) : [];
-        const variableDeclarations = ctx.variableDeclaration ? ctx.variableDeclaration.map((node: any) => this.visit(node)) : [];
-    
-        return [...classDeclarations, ...functionDeclarations, ...variableDeclarations];
-    }
-
-    // Návštěvník pro `accessModifier`
-    accessModifier(ctx: any) {
-        if (ctx.PublicKeyword) return "public";
-        if (ctx.PrivateKeyword) return "private";
-        if (ctx.ProtectedKeyword) return "protected";
-    }
-
-    // Návštěvník pro `functionDeclaration`
-    functionDeclaration(ctx: any) {
-        const functionName = ctx.Identifier[0].image;
-        const params = this.visit(ctx.parameterList);
-        const functionBody = ctx.accessBlockBody ? ctx.accessBlockBody.map((bodyNode: chevrotain.CstNode) => this.visit(bodyNode)) : [];
-        return { type: 'FunctionDeclaration', name: functionName, parameters: params, body: functionBody };
-    }
-
-    // Návštěvník pro `parameterList`
-    parameterList(ctx: any) {
-        return ctx.parameter ? ctx.parameter .map((paramNode: chevrotain.CstNode) => this.visit(paramNode)) : [];
-    }
-
-    // Návštěvník pro `parameter`
-    parameter(ctx: any) {
-        const paramName = ctx.Identifier[0].image;
-        const paramType = ctx.Identifier[1].image;
-        return { name: paramName, type: paramType };
-    }
-
-    // Návštěvník pro `variableDeclaration`
-    variableDeclaration(ctx: any) {
-        const varName = ctx.Identifier[0].image;
-        const varType = ctx.type ? this.visit(ctx.type) : null;
-        const varValue = ctx.expression ? this.visit(ctx.expression) : null;
-        return { type: 'VariableDeclaration', name: varName, varType, value: varValue };
-    }
-
-    // Návštěvník pro `type`
-    type(ctx: any) {
-        if (ctx.IntKeyword) return "int";
-        if (ctx.StringKeyword) return "string";
-        if (ctx.Identifier) {
-            const baseType = ctx.Identifier[0].image;
-            const unionType = ctx.type ? this.visit(ctx.type) : null;
-            return unionType ? `${baseType} | ${unionType}` : baseType;
+            file(ctx: any) {
+                const classDeclarations = ctx.classDeclaration ? ctx.classDeclaration.map((classNode: chevrotain.CstNode) => this.visit(classNode)) : [];
+                const functionDeclarations = ctx.functionDeclaration ? ctx.functionDeclaration.map((funcNode: chevrotain.CstNode) => this.visit(funcNode)) : [];
+                const variableDeclarations = ctx.variableDeclaration ? ctx.variableDeclaration.map((varNode: chevrotain.CstNode) => this.visit(varNode)) : [];
+              
+                return [...classDeclarations, ...functionDeclarations, ...variableDeclarations];
+            }
+        
+            classBody(ctx: any) {
+                // Kromě modifikátorů zahrnujeme deklarace tříd, funkcí a proměnných do jednotlivých polí
+                const classDeclarations = ctx.classDeclaration ? ctx.classDeclaration.map((node: any) => this.visit(node)) : [];
+                const functionDeclarations = ctx.functionDeclaration ? ctx.functionDeclaration.map((node: any) => this.visit(node)) : [];
+                const variableDeclarations = ctx.variableDeclaration ? ctx.variableDeclaration.map((node: any) => this.visit(node)) : [];
+                const accessBlockDeclarations = ctx.accessBlock ? ctx.accessBlock.map((node: any) => this.visit(node)) : [];
+                return {
+                    classes: classDeclarations,
+                    functions: functionDeclarations,
+                    variables: variableDeclarations,
+                    accessBlocks: accessBlockDeclarations
+                };
+            }
+        
+            classDeclaration(ctx: any) {
+                const className = ctx.Identifier ? ctx.Identifier[0].image : null;
+                const classBody = this.visit(ctx.classBody);  // Tělo třídy bude nyní vráceno jako strukturovaný objekt
+                
+                return {
+                    type: 'ClassDeclaration',
+                    name: className,
+                    variables: classBody.variables,  // Proměnné
+                    functions: classBody.functions,  // Funkce
+                    classes: classBody.classes,      // Podřízené třídy
+                    modifier: this.currentModifier,
+                    accessBlocks: classBody.accessBlocks
+                };
+            }
+        
+            accessBlock(ctx: any) {
+                const previousModifier = this.currentModifier;  // Uložíme předchozí modifikátor
+                
+                const modifier = ctx.accessModifier ? this.visit(ctx.accessModifier) : 'public';  // Získáme modifikátor nebo nastavíme defaultní 'public'
+                this.currentModifier = modifier;  // Nastavíme aktuální modifikátor
+                
+                const blockBody = ctx.accessBlockBody ? ctx.accessBlockBody.map((bodyNode: chevrotain.CstNode) => this.visit(bodyNode)) : [];
+        
+                this.currentModifier = previousModifier;  // Obnovíme předchozí modifikátor
+                
+                return { type: 'AccessBlock', modifier, body: blockBody,  variables: blockBody.variables,  // Proměnné
+                    functions: blockBody.functions,  // Funkce
+                    classes: blockBody.classes,   };
+            }
+             
+            accessBlockBody(ctx: any) {
+                const classDeclarations = ctx.classDeclaration ? ctx.classDeclaration.map((node: any) => this.visit(node)) : [];
+                const functionDeclarations = ctx.functionDeclaration ? ctx.functionDeclaration.map((node: any) => this.visit(node)) : [];
+                const variableDeclarations = ctx.variableDeclaration ? ctx.variableDeclaration.map((node: any) => this.visit(node)) : [];
+        
+                return {
+                    classes: classDeclarations,
+                    functions: functionDeclarations,
+                    variables: variableDeclarations,
+                };
+            }
+        
+            accessModifier(ctx: any) {
+                if (ctx.PublicKeyword) return "public";
+                if (ctx.PrivateKeyword) return "private";
+                if (ctx.ProtectedKeyword) return "protected";
+            }
+        
+            functionDeclaration(ctx: any) {
+                const functionName = ctx.Identifier[0].image;
+                const params = this.visit(ctx.parameterList);
+                const functionBody = ctx.accessBlockBody ? ctx.accessBlockBody.map((bodyNode: chevrotain.CstNode) => this.visit(bodyNode)) : [];
+                return {
+                    type: 'FunctionDeclaration',
+                    name: functionName,
+                    parameters: params,
+                    body: functionBody,
+                    modifier: this.currentModifier,
+                };
+            }
+        
+            parameterList(ctx: any) {
+                return ctx.parameter ? ctx.parameter.map((paramNode: chevrotain.CstNode) => this.visit(paramNode)) : [];
+            }
+        
+            parameter(ctx: any) {
+                const paramName = ctx.Identifier[0].image;
+                const paramType = ctx.Identifier[1].image;
+                return { name: paramName, type: paramType };
+            }
+        
+            variableDeclaration(ctx: any) {
+                const varName = ctx.Identifier[0].image;
+                const varType = ctx.type ? this.visit(ctx.type) : null;
+                const varValue = ctx.expression ? this.visit(ctx.expression) : null;
+                return {
+                    type: 'VariableDeclaration',
+                    name: varName,
+                    varType,
+                    value: varValue,
+                    modifier: this.currentModifier,
+                };
+            }
+        
+            type(ctx: any) {
+                if (ctx.IntKeyword) return "int";
+                if (ctx.StringKeyword) return "string";
+                if (ctx.Identifier) {
+                    const baseType = ctx.Identifier[0].image;
+                    const unionType = ctx.type ? this.visit(ctx.type) : null;
+                    return unionType ? `${baseType} | ${unionType}` : baseType;
+                }
+            }
+        
+            expression(ctx: any) {
+                if (ctx.NumberLiteral) return ctx.NumberLiteral[0].image;
+                if (ctx.Identifier) return ctx.Identifier[0].image;
+                if (ctx.String) return ctx.String[0].image;
+            }
         }
-    }
-
-    
-    expression(ctx: any) {
-        if (ctx.NumberLiteral) return ctx.NumberLiteral[0].image;
-        if (ctx.Identifier) return ctx.Identifier[0].image;
-        if (ctx.String) return ctx.String[0].image;
-    }
-
-    
-}
+        
+        
     const visitor  = new CahaVisitor();
-    const AST = visitor.visit(parseResult);
+    visitResult = visitor.visit(parseResult);
         
         console.log("Parse successful:", parseResult.children);
-        console.log("Visit Successful" + JSON.stringify(AST, null, 2));
+    
+        console.log("Visit Successful" + JSON.stringify(visitResult, null, 2));
 
-
+ 
+    
     }
 }
 	validateTextDocument(change.document);
@@ -344,6 +383,8 @@ if ( tokens.errors.length > 0) {
 
 
 async function validateTextDocument(textDocument: TextDocument): Promise<Diagnostic[]> {
+
+
 
 	packages.areInTheSamePackage(textDocument, textDocument) ;
 
@@ -492,25 +533,21 @@ async function validateTextDocument(textDocument: TextDocument): Promise<Diagnos
 
 
 connection.onDidChangeWatchedFiles(_change => {
-	// Monitored files have change in VSCode
+
 	connection.console.log('We received a file change event');
 });
 
-
-
-
-
-function getWordAtPosition(document: TextDocument, position: { line: number, character: number }): string {
-    const line = document.getText({ start: { line: position.line, character: 0 }, end: { line: position.line, character: document.getText().length } });
-    const words = line.split(/\s+/); // Rozdělí řádek na slova podle mezer
+function getWordAtPosition(document: TextDocument,  line: number, character: number ): string[] {
+    const linea = document.getText({ start: { line: line, character: 0 }, end: { line:line, character: document.getText().length } });
+    const words = linea.split(/[^\S\n.]/); 
     for (const word of words) {
-        const start = line.indexOf(word);
+        const start = linea.indexOf(word);
         const end = start + word.length;
-        if (position.character >= start && position.character <= end) {
-            return word;
+        if (character >= start && character <= end) {
+            return word.split(".");
         }
     }
-    return '';
+    return [];
 }
 
 const keywords = [
@@ -521,11 +558,15 @@ const keywords = [
 	'string ',  'int32 ', 'enum ', 'case ', 'static', 'import', 'match',
 ];
 
-
 connection.onCompletion(
     (_textDocumentPosition: TextDocumentPositionParams, changeEvent): CompletionItem[] => {
-		const currentDocument = documents.get(_textDocumentPosition.textDocument.uri);
         
+        connection.console.log(inputText.toString());
+    
+		const currentDocument = documents.get(_textDocumentPosition.textDocument.uri);
+        const definitonOfNodeOnPosition = getWordAtPosition( currentDocument as TextDocument,_textDocumentPosition.position.line, _textDocumentPosition.position.character);
+        const isChild = definitonOfNodeOnPosition.length > 1 ? true : false;
+        console.log("definitonOf node at position" + definitonOfNodeOnPosition);
 
         const completionItems: CompletionItem[] = keywords.map((keyword, index) => ({
             label: keyword,
@@ -533,15 +574,70 @@ connection.onCompletion(
             data: index + 1
         }));
 
+        const whisperedClasses = visitResult.filter((node: any) => 
+            node.type == "ClassDeclaration" 
+             );
         
 
+        
+        if  (!isChild) {
+            const whisperedFunctions = visitResult.filter((node: any) => 
+                node.type == "FunctionDeclaration" 
+                 );
+            const whisperedVariables = visitResult.filter((node: any) => 
+                    node.type == "VariableDeclaration" 
+                     );
+        
+        console.log("definitonOfNodeAtPostion:",definitonOfNodeOnPosition);
+        
+        whisperedClasses.forEach((node: any) => {
+           
+            completionItems.push({
+                label: node.name ,
+                kind: CompletionItemKind.Snippet,
+                insertText: node.name,
+                insertTextFormat: InsertTextFormat.Snippet,
+                documentation: ''
+
+            });
+        });
+
+        whisperedFunctions.forEach((node: any) => {
+           
+            completionItems.push({
+                label: node.name,
+                kind: CompletionItemKind.Snippet,
+                insertText: node.name + "()",
+                insertTextFormat: InsertTextFormat.Snippet,
+                documentation: ''
+
+            });
+        });
+
+        whisperedVariables.forEach((node: any) => {
+            completionItems.push({
+                label: node.name,
+                kind: CompletionItemKind.Snippet,
+                insertText: node.name,
+                insertTextFormat: InsertTextFormat.Snippet,
+                documentation: ''
+
+            });
+        });
+
+        
+        }
+        
+        else {
+            definitonOfNodeOnPosition[-2];
+        }
+            
+    
 		documents.all().forEach(textDocument => {
 			_textDocumentPosition.position.line;
 		
-
 		});
         
-	
         completionItems.push({
             label: 'fori',
             kind: CompletionItemKind.Snippet,

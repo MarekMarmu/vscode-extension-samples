@@ -8,10 +8,9 @@ const BaseCstVisitor = parser.getBaseCstVisitorConstructor();
 export default class CahaVisitor extends BaseCstVisitor {
 
     files = {};
+    classes = {};
     
     constructor() {
-        
-
         super();
         this.validateVisitor();
     }

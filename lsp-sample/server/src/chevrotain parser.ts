@@ -3,13 +3,11 @@ import { tokens, allTokens } from './chervotain lexer.js';
 
 export class MyParser extends chevrotain.CstParser {
   
-
     constructor() {
         super(allTokens);
         this.performSelfAnalysis();
     }
 
-    
 
     // Pravidlo pro celý program - může obsahovat jak třídy, tak funkce
     public file = this.RULE("file", () => {
@@ -68,6 +66,8 @@ export class MyParser extends chevrotain.CstParser {
             this.CONSUME(tokens.Semicolon); // ";"
     
     });
+
+ 
 
     // Pravidlo pro deklaraci třídy (může obsahovat další třídy a funkce)
     public classDeclaration = this.RULE("classDeclaration", () => {
